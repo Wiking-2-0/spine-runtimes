@@ -1068,6 +1068,46 @@ export class Spine extends ViewContainer {
 	}
 
 	/**
+	 * Prepares the initialization data for creating a Spine game object.
+	 * Handles skeleton data parsing and caching. If the skeleton data is already cached, returns the cached version.
+	 * Otherwise, loads and parses the skeleton and atlas assets, then caches the result.
+	 *
+	 * @param options - Options to configure the Spine game object. See {@link SpineFromOptions}
+	 * @returns {SpineOptions} The initialization options object ready to be passed to the Spine constructor
+	 */
+	static getSpineInitData({ skeleton, atlas, scale = 1, darkTint, autoUpdate = true, boundsProvider }: SpineFromOptions): SpineOptions {
+		const cacheKey = `${skeleton}-${atlas}-${scale}`;
+
+		if (Cache.has(cacheKey)) {
+			return {
+				skeletonData: Cache.get<SkeletonData>(cacheKey),
+				darkTint,
+				autoUpdate,
+				boundsProvider,
+			};
+		}
+
+		const skeletonAsset = Assets.get<any | Uint8Array>(skeleton);
+		const atlasAsset = Assets.get<TextureAtlas>(atlas);
+		const attachmentLoader = new AtlasAttachmentLoader(atlasAsset);
+		const parser = skeletonAsset instanceof Uint8Array
+			? new SkeletonBinary(attachmentLoader)
+			: new SkeletonJson(attachmentLoader);
+
+		parser.scale = scale;
+		const skeletonData = parser.readSkeletonData(skeletonAsset);
+
+		Cache.set(cacheKey, skeletonData);
+
+		return {
+			skeletonData,
+			darkTint,
+			autoUpdate,
+			boundsProvider,
+		};
+	}
+
+	/**
 	 * Use this method to instantiate a Spine game object.
 	 * Before instantiating a Spine game object, the skeleton (`.skel` or `.json`) and the atlas text files must be loaded into the Assets. For example:
 	 * ```
@@ -1081,36 +1121,7 @@ export class Spine extends ViewContainer {
 	 * @param options - Options to configure the Spine game object. See {@link SpineFromOptions}
 	 * @returns {Spine} The Spine game object instantiated
 	 */
-	static from ({ skeleton, atlas, scale = 1, darkTint, autoUpdate = true, boundsProvider }: SpineFromOptions) {
-		const cacheKey = `${skeleton}-${atlas}-${scale}`;
-
-		if (Cache.has(cacheKey)) {
-			return new Spine({
-				skeletonData: Cache.get<SkeletonData>(cacheKey),
-				darkTint,
-				autoUpdate,
-				boundsProvider,
-			});
-		}
-
-		const skeletonAsset = Assets.get<any | Uint8Array>(skeleton);
-
-		const atlasAsset = Assets.get<TextureAtlas>(atlas);
-		const attachmentLoader = new AtlasAttachmentLoader(atlasAsset);
-		const parser = skeletonAsset instanceof Uint8Array
-			? new SkeletonBinary(attachmentLoader)
-			: new SkeletonJson(attachmentLoader);
-
-		parser.scale = scale;
-		const skeletonData = parser.readSkeletonData(skeletonAsset);
-
-		Cache.set(cacheKey, skeletonData);
-
-		return new Spine({
-			skeletonData,
-			darkTint,
-			autoUpdate,
-			boundsProvider,
-		});
+	static from(options: SpineFromOptions) {
+		return new Spine(Spine.getSpineInitData(options));
 	}
 }
